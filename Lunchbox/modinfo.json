@@ -3,7 +3,7 @@
     "type": "code",
     "modid": "lunchbox",
     "name": "Lunchbox",
-    "authors": [ "Paige Marincak" ],
+    "authors": [ "azurempress" ],
     "description": "Adds a lunchbox storage container which automatically feeds the player when hungry.",
     "version": "1.0.0",
     "dependencies": {
