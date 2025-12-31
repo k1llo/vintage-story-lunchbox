@@ -1,5 +1,5 @@
 # Vintage Story Lunchbox Mod
-Mod for Vintage Story 1.21.x+
+Adds a lunchbox storage container which automatically feeds the player when hungry.
 
 ## Table of Contents
 
@@ -15,7 +15,8 @@ Mod for Vintage Story 1.21.x+
 
 ## Download
 
-TBD
+1. [ModDB](https://mods.vintagestory.at/lunchbox)
+2. [Releases](https://github.com/pmarincak/vintage-story-lunchbox/releases)
 
 ## Maintainers & Contribution
-This package is maintained by [Paige Marincak](https://twitter.com/paigemarincak/). To contribute, please fork the repo and make pull requests.
+This package is maintained by [Paige Marincak](https://bsky.app/profile/paigemarincak.bsky.social). To contribute, please fork the repo and make pull requests.
