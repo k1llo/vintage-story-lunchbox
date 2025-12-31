@@ -1,0 +1,138 @@
+using Vintagestory.API.Common;
+using Vintagestory.API.Datastructures;
+using Vintagestory.API.Server;
+using Vintagestory.GameContent;
+
+namespace Lunchbox;
+
+public class ItemLunchBox : Item
+{
+    static private string HUNGER_KEY = "hunger"; //! Key for hunger-related statistics for the player
+    static private float MIN_SATIETY = 15.0f; //! Minimum satiety that the player has before the lunchbox auto-eats
+    private EntityPlayer? _player_entity = null; //! Player entity that has the lunchbox equiped. If null then the box is not equipped.
+
+    public ItemLunchBox() : base() { }
+
+    public ItemLunchBox(int itemId) : base(itemId) { }
+
+    /**
+     * \brief Called when the item changes inventory slots.
+     */
+    public override void OnModifiedInInventorySlot(IWorldAccessor world, ItemSlot slot, ItemStack extractedStack)
+    {
+        ConfigureAutoEat(world, slot.Inventory);
+    }
+
+    /**
+     * \brief Configures auto-eat functionality for this lunchbox provided the \a world and the \a inventory the lunchbox resides in.
+     * \note Assumes that the inventory contains this lunchbox.
+     */
+    public void ConfigureAutoEat(IWorldAccessor world, InventoryBase inventory)
+    {
+        // If the world is not server-side then auto-eat functionality will fail
+        if (!(world is IServerWorldAccessor))
+        {
+            return;
+        }
+
+        var next_player_entity = FoodItemUtility.GetPlayerFromInventory(inventory);
+
+        // No Change Needed
+        if (_player_entity == next_player_entity)
+        {
+            return;
+        }
+
+        _player_entity?.WatchedAttributes.UnregisterListener(OnHungerChanged);
+        _player_entity = next_player_entity;
+        _player_entity?.WatchedAttributes.RegisterModifiedListener(HUNGER_KEY, OnHungerChanged);
+    }
+
+    /**
+     * \brief Called when hunger-related statistics are changed. If the current satiety is less than the minimum then auto-eat from the lunchbox inventory.
+     */
+    private void OnHungerChanged()
+    {
+        // Shouldn't happen but just in case
+        if (_player_entity == null)
+        {
+            return;
+        }
+
+        ITreeAttribute hunger_tree = _player_entity.WatchedAttributes.GetTreeAttribute(HUNGER_KEY);
+        if (hunger_tree.GetFloat("currentsaturation") > MIN_SATIETY)
+        {
+            return;
+        }
+
+        var edible_slot = FindFirstEdibleSlot();
+        EatFood(edible_slot);
+    }
+
+    /**
+     * \brief Attempts to eat the food located in the \a slot.
+     * \note Assumes that the item in the \a slot is food.
+     */
+    private void EatFood(ItemSlotBagContent? slot)
+    {
+        const float minimum_seconds = 2; // In order for eating to occur for meals they must have been munched on for at least 2 seconds. The lunchbox fakes this and does it instantly.
+        var item = slot?.Itemstack?.Collectible;
+        item?.OnHeldInteractStop(minimum_seconds, slot, _player_entity, null, null);
+    }
+
+    /**
+     * \brief Retuns the first inventory slot within the lunchbox that contains edible items.
+     */
+    private ItemSlotBagContent? FindFirstEdibleSlot()
+    {
+        CollectableBehaviorLunchbox collectibleInterface = GetCollectibleInterface<CollectableBehaviorLunchbox>();
+        var contents = collectibleInterface._slots;
+
+        ItemSlotBagContent? cooked_container_slot = null;
+        ItemSlotBagContent? meal_holding_container_slot = null;
+        foreach (ItemSlotBagContent? slot in contents)
+        {
+            if (slot == null) { continue; }
+
+            // If our slot has nutrition information then exit search
+            if (FoodItemUtility.HasNutritionInformation(slot, _player_entity)) { return slot; }
+
+            // Cooked Container Search (ex. Crocks, Pots)
+            var item = slot.Itemstack?.Collectible;
+            if (cooked_container_slot == null && item is BlockCookedContainerBase)
+            {
+                var container = item as BlockCookedContainerBase;
+                if (container.IsEmpty(slot.Itemstack)) { continue; }
+                if (!FoodItemUtility.HasNutritionInformation(slot, _player_entity)) { continue; }
+
+                cooked_container_slot = slot;
+            }
+
+            // Meal Holding Container Check (ex. Bowls)
+            if (meal_holding_container_slot == null && FoodItemUtility.IsMealHoldingContainer(slot))
+            {
+                if (FoodItemUtility.HasNutritionInformation(slot, _player_entity)) { continue; }
+
+                meal_holding_container_slot = slot;
+            }
+
+            if (meal_holding_container_slot == null || cooked_container_slot == null) { continue; }
+
+            // Make Meal
+            var cooked_container = cooked_container_slot.Itemstack?.Collectible as BlockCookedContainerBase;
+            bool? result = cooked_container?.ServeIntoStack(meal_holding_container_slot, cooked_container_slot, _player_entity.World);
+            if (result != true)
+            {
+                meal_holding_container_slot = null;
+                continue;
+            }
+
+            return meal_holding_container_slot;
+        }
+
+        return null;
+    }
+
+
+
+}
